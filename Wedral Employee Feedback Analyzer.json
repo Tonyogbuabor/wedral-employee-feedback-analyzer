@@ -1,0 +1,633 @@
+{
+  "name": "Wedral Employee Feedback Analyzer",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Wedral Employee Feedback Form",
+        "formDescription": "Your voice matters. Please share your honest feedback about the organization. Your response goes directly to HR.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Department",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Operations"
+                  },
+                  {
+                    "option": "Finance"
+                  },
+                  {
+                    "option": "Human Resources"
+                  },
+                  {
+                    "option": "Sales & Marketing"
+                  },
+                  {
+                    "option": "IT / Technology"
+                  },
+                  {
+                    "option": "Customer Service"
+                  },
+                  {
+                    "option": "Administration"
+                  },
+                  {
+                    "option": "Other"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Employee Name (optional)",
+              "placeholder": "Leave blank to stay anonymous"
+            },
+            {
+              "fieldLabel": "Your Feedback",
+              "fieldType": "textarea",
+              "placeholder": "Tell us what's on your mind: pay, welfare, management, workload, requests, anything...",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false,
+          "buttonLabel": "Submit Feedback",
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "Thank you! Your feedback has been submitted to HR."
+            }
+          }
+        }
+      },
+      "id": "e18e59d1-9456-445f-a8ec-9441cf4a94b1",
+      "name": "On Form Submission",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        416,
+        144
+      ],
+      "webhookId": "204caed3-ec6f-45ed-8b1a-790dd2343857"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classify this employee feedback.\n\nDepartment: {{ $json['Department'] }}\n\nFeedback:\n<<<\n{{ $json['Your Feedback'] }}\n>>>",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an HR analytics assistant. You classify ONE piece of employee feedback submitted through the company feedback form.\n\nBase your answer only on the text given. Never invent facts.\n\nFields to produce:\n- category: the single main topic the employee is talking about. Choose exactly one of: Compensation & Benefits, Staff Welfare & Wellbeing, Work-Life Balance, Management & Leadership, Career Growth & Training, Workplace & Facilities, Tools & Resources, Culture & Inclusion, Communication, Safety & Compliance, Other.\n  Guidance: pay, bonuses, allowances, health insurance, pension, leave pay -> Compensation & Benefits; welfare, stress, mental health, meals, transport, support, burnout -> Staff Welfare & Wellbeing; long hours, overtime, flexibility, remote work -> Work-Life Balance; supervisors, leadership, fairness, favouritism -> Management & Leadership; promotion, training, mentoring, skills -> Career Growth & Training; office, equipment space, cleanliness, facilities -> Workplace & Facilities; software, systems, resources, tooling -> Tools & Resources; inclusion, discrimination, harassment, team spirit -> Culture & Inclusion; information flow, transparency, meetings -> Communication; safety, legal or compliance concerns -> Safety & Compliance.\n- sentiment: Positive, Neutral, Negative or Mixed.\n- sentiment_score: number from -1 (very negative) to 1 (very positive).\n- urgency: Low, Medium, High or Critical. Critical = harassment, discrimination, safety, legal/ethical violations or resignation risk. High = serious or recurring concern. Medium = notable issue. Low = minor or positive.\n- request: if the employee is asking for something specific (for example a salary review, remote work option, transport allowance, more training), give a SHORT standardized label of 2 to 5 words in Title Case so similar requests group together. If there is no request, return exactly: None\n- summary: one clear sentence summarizing the feedback.\n\nReturn output strictly in the required JSON schema."
+        }
+      },
+      "id": "2aa9edf1-334e-4173-876e-5fcf760e529a",
+      "name": "Classify Feedback Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        640,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"Compensation & Benefits\",\n        \"Staff Welfare & Wellbeing\",\n        \"Work-Life Balance\",\n        \"Management & Leadership\",\n        \"Career Growth & Training\",\n        \"Workplace & Facilities\",\n        \"Tools & Resources\",\n        \"Culture & Inclusion\",\n        \"Communication\",\n        \"Safety & Compliance\",\n        \"Other\"\n      ]\n    },\n    \"sentiment\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"Positive\",\n        \"Neutral\",\n        \"Negative\",\n        \"Mixed\"\n      ]\n    },\n    \"sentiment_score\": {\n      \"type\": \"number\"\n    },\n    \"urgency\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"Low\",\n        \"Medium\",\n        \"High\",\n        \"Critical\"\n      ]\n    },\n    \"request\": {\n      \"type\": \"string\"\n    },\n    \"summary\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"category\",\n    \"sentiment\",\n    \"sentiment_score\",\n    \"urgency\",\n    \"request\",\n    \"summary\"\n  ]\n}"
+      },
+      "id": "8de8aba9-dab0-49f3-a819-462ffe2160ac",
+      "name": "Classifier Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        784,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "Timestamp",
+              "type": "string",
+              "value": "={{ $('On Form Submission').item.json.submittedAt || $now.toISO() }}"
+            },
+            {
+              "id": "r2",
+              "name": "Department",
+              "type": "string",
+              "value": "={{ $('On Form Submission').item.json['Department'] }}"
+            },
+            {
+              "id": "r3",
+              "name": "Employee Name",
+              "type": "string",
+              "value": "={{ $('On Form Submission').item.json['Employee Name (optional)'] || 'Anonymous' }}"
+            },
+            {
+              "id": "r4",
+              "name": "Feedback",
+              "type": "string",
+              "value": "={{ $('On Form Submission').item.json['Your Feedback'] }}"
+            },
+            {
+              "id": "r5",
+              "name": "Category",
+              "type": "string",
+              "value": "={{ $json.output.category }}"
+            },
+            {
+              "id": "r6",
+              "name": "Sentiment",
+              "type": "string",
+              "value": "={{ $json.output.sentiment }}"
+            },
+            {
+              "id": "r7",
+              "name": "Sentiment Score",
+              "type": "number",
+              "value": "={{ $json.output.sentiment_score }}"
+            },
+            {
+              "id": "r8",
+              "name": "Urgency",
+              "type": "string",
+              "value": "={{ $json.output.urgency }}"
+            },
+            {
+              "id": "r9",
+              "name": "Request",
+              "type": "string",
+              "value": "={{ $json.output.request }}"
+            },
+            {
+              "id": "r10",
+              "name": "Summary",
+              "type": "string",
+              "value": "={{ $json.output.summary }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9db0dc1f-2b95-47fe-9762-736d92916539",
+      "name": "Assemble Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        992,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "14Fa0xdfQo1PgdKaZQCbR0Y_fdNWLweyEcGc1gxt8fAU",
+          "mode": "list",
+          "cachedResultName": "Wedral Employee Feedback",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14Fa0xdfQo1PgdKaZQCbR0Y_fdNWLweyEcGc1gxt8fAU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1925573353,
+          "mode": "list",
+          "cachedResultName": "Feedback",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14Fa0xdfQo1PgdKaZQCbR0Y_fdNWLweyEcGc1gxt8fAU/edit#gid=1925573353"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.Timestamp }}",
+            "Department": "={{ $json.Department }}",
+            "Feedback": "={{ $json.Feedback }}",
+            "Employee Name": "={{ $json['Employee Name'] }}",
+            "Category": "={{ $json.Category }}",
+            "Sentiment": "={{ $json.Sentiment }}",
+            "Urgency": "={{ $json.Urgency }}",
+            "Sentiment Score": "={{ $json['Sentiment Score'] }}",
+            "Request": "={{ $json.Request }}",
+            "Summary": "={{ $('Classify Feedback Agent').item.json.output.summary }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Employee Name",
+              "displayName": "Employee Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Feedback",
+              "displayName": "Feedback",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sentiment",
+              "displayName": "Sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sentiment Score",
+              "displayName": "Sentiment Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Urgency",
+              "displayName": "Urgency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Request",
+              "displayName": "Request",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "9e2bdbf4-da37-48d5-925a-911da33ccb77",
+      "name": "Append Feedback to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1216,
+        144
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "v1FNEriXyrtzAJ2v",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "14Fa0xdfQo1PgdKaZQCbR0Y_fdNWLweyEcGc1gxt8fAU",
+          "mode": "list",
+          "cachedResultName": "Wedral Employee Feedback",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14Fa0xdfQo1PgdKaZQCbR0Y_fdNWLweyEcGc1gxt8fAU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1925573353,
+          "mode": "list",
+          "cachedResultName": "Feedback",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/14Fa0xdfQo1PgdKaZQCbR0Y_fdNWLweyEcGc1gxt8fAU/edit#gid=1925573353"
+        },
+        "options": {}
+      },
+      "id": "e4fdc0f0-b2cf-418d-9510-194f71613c68",
+      "name": "Read All Feedback",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1440,
+        144
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "v1FNEriXyrtzAJ2v",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json).filter(r => r['Feedback'] && String(r['Feedback']).trim());\n\nconst stats = {\n  total: rows.length,\n  avgScore: 0,\n  sentiment: { Positive: 0, Neutral: 0, Negative: 0, Mixed: 0 },\n  urgency: { Low: 0, Medium: 0, High: 0, Critical: 0 },\n  categories: {},\n  departments: {},\n  requests: {}\n};\n\nlet scoreSum = 0, scoreN = 0;\n\nfor (const r of rows) {\n  const cat = r['Category'] || 'Other';\n  const sent = r['Sentiment'] || 'Neutral';\n  const dep = r['Department'] || 'Unspecified';\n  const urg = r['Urgency'] || 'Low';\n  const score = parseFloat(r['Sentiment Score']);\n  const req = String(r['Request'] || '').trim();\n\n  stats.sentiment[sent] = (stats.sentiment[sent] || 0) + 1;\n  stats.urgency[urg] = (stats.urgency[urg] || 0) + 1;\n\n  if (!stats.categories[cat]) stats.categories[cat] = { count: 0, Positive: 0, Neutral: 0, Negative: 0, Mixed: 0, scoreSum: 0 };\n  const c = stats.categories[cat];\n  c.count++;\n  c[sent] = (c[sent] || 0) + 1;\n  if (!isNaN(score)) c.scoreSum += score;\n\n  if (!stats.departments[dep]) stats.departments[dep] = { count: 0, Negative: 0, scoreSum: 0 };\n  const d = stats.departments[dep];\n  d.count++;\n  if (sent === 'Negative') d.Negative++;\n  if (!isNaN(score)) d.scoreSum += score;\n\n  if (!isNaN(score)) { scoreSum += score; scoreN++; }\n\n  if (req && req.toLowerCase() !== 'none') {\n    const key = req.replace(/\\s+/g, ' ');\n    stats.requests[key] = (stats.requests[key] || 0) + 1;\n  }\n}\n\nstats.avgScore = scoreN ? +(scoreSum / scoreN).toFixed(2) : 0;\nfor (const k of Object.keys(stats.categories)) {\n  const c = stats.categories[k];\n  c.avgScore = c.count ? +(c.scoreSum / c.count).toFixed(2) : 0;\n  delete c.scoreSum;\n}\nfor (const k of Object.keys(stats.departments)) {\n  const d = stats.departments[k];\n  d.avgScore = d.count ? +(d.scoreSum / d.count).toFixed(2) : 0;\n  delete d.scoreSum;\n}\n\nconst entries = rows.slice(-150).map(r =>\n  `${r['Timestamp'] || ''} | ${r['Department'] || ''} | ${r['Category'] || ''} | ${r['Sentiment'] || ''} | ${r['Urgency'] || ''} | ${String(r['Feedback']).slice(0, 300).replace(/\\s+/g, ' ')}`\n);\n\nreturn [{ json: { stats, entries } }];"
+      },
+      "id": "1b06d048-6cef-40cd-8b33-f015f3486e8b",
+      "name": "Aggregate Sheet Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Prepare the HR briefing from the complete feedback sheet.\n\nAGGREGATED STATISTICS (accurate, do not recalculate):\n{{ JSON.stringify($json.stats, null, 2) }}\n\nFEEDBACK ENTRIES (Timestamp | Department | Category | Sentiment | Urgency | Feedback), oldest to newest, the LAST line is the newest feedback:\n{{ $json.entries.join('\\n') }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a senior HR strategist writing a briefing for the HR team. You receive aggregated statistics (already computed and accurate, never recalculate or contradict them) plus the individual feedback entries from the company feedback sheet.\n\nWrite a concise, insightful, objective briefing:\n- executive_summary: 3 to 4 sentences on the overall state of employee sentiment, the biggest themes and what changed with the latest feedback.\n- overall_mood: one of Positive, Neutral, Concerned, At Risk.\n- top_priorities: up to 4 items, most important first. Each has a title, why (reference counts from the statistics), and a specific recommended_action HR can take.\n- category_insights: for each category that has feedback, one short insight sentence (max 25 words) that explains what staff are actually saying.\n- positive_highlights: up to 4 things employees are happy about.\n- emerging_risks: up to 4 risks or patterns (for example a department with rising negativity, or a request many staff share). Return an empty list if none.\n- latest_feedback_comment: 1 to 2 sentences on how the newest feedback relates to the existing pattern.\n\nUse only the data provided. Do not identify or speculate about individual employees. Return output strictly in the required JSON schema."
+        }
+      },
+      "id": "02e4797e-1584-49fd-8770-33b305e12c97",
+      "name": "HR Summary Analyst Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        1888,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"executive_summary\": {\n      \"type\": \"string\"\n    },\n    \"overall_mood\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"Positive\",\n        \"Neutral\",\n        \"Concerned\",\n        \"At Risk\"\n      ]\n    },\n    \"top_priorities\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"title\": {\n            \"type\": \"string\"\n          },\n          \"why\": {\n            \"type\": \"string\"\n          },\n          \"recommended_action\": {\n            \"type\": \"string\"\n          }\n        },\n        \"required\": [\n          \"title\",\n          \"why\",\n          \"recommended_action\"\n        ]\n      }\n    },\n    \"category_insights\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"category\": {\n            \"type\": \"string\"\n          },\n          \"insight\": {\n            \"type\": \"string\"\n          }\n        },\n        \"required\": [\n          \"category\",\n          \"insight\"\n        ]\n      }\n    },\n    \"positive_highlights\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"emerging_risks\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"latest_feedback_comment\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"executive_summary\",\n    \"overall_mood\",\n    \"top_priorities\",\n    \"category_insights\",\n    \"positive_highlights\",\n    \"emerging_risks\",\n    \"latest_feedback_comment\"\n  ]\n}"
+      },
+      "id": "ab080811-cf90-4e4a-8a7a-8b187ecc4da3",
+      "name": "Analyst Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        2032,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\nconst a = $json.output || {};\nconst s = $('Aggregate Sheet Data').first().json.stats;\nconst latest = $('Assemble Row').first().json;\n\nconst COL = { Positive:'#2e7d32', Neutral:'#90a4ae', Mixed:'#f9a825', Negative:'#c62828' };\nconst URG = { Low:'#2e7d32', Medium:'#f9a825', High:'#ef6c00', Critical:'#c62828' };\nconst MOOD = { 'Positive':'#2e7d32', 'Neutral':'#546e7a', 'Concerned':'#ef6c00', 'At Risk':'#c62828' };\nconst pill = (t, c) => `<span style=\"display:inline-block;background:${c};color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:bold;\">${esc(t)}</span>`;\nconst scoreColor = v => v > 0.25 ? COL.Positive : (v < -0.25 ? COL.Negative : COL.Mixed);\nconst scoreLabel = v => v > 0.25 ? 'Positive' : (v < -0.25 ? 'Negative' : 'Mixed');\nconst pct = (n, t) => t ? Math.round(n / t * 100) : 0;\n\nconst h3 = (t, color) => `<h3 style=\"margin:30px 0 12px;font-size:16px;color:${color || '#1a237e'};border-bottom:2px solid #e8eaf6;padding-bottom:6px;\">${t}</h3>`;\nconst ul = arr => (arr && arr.length) ? `<ul style=\"margin:0;padding-left:20px;\">${arr.map(i => `<li style=\"margin-bottom:6px;\">${esc(i)}</li>`).join('')}</ul>` : '<p style=\"margin:0;color:#888;\">None identified.</p>';\n\nconst kpi = (label, value, color, sub) => `\n<td style=\"width:25%;padding:4px;\">\n  <div style=\"background:#fff;border:1px solid #e0e0e0;border-top:4px solid ${color};border-radius:6px;padding:12px 8px;text-align:center;\">\n    <div style=\"font-size:24px;font-weight:bold;color:${color};\">${value}</div>\n    <div style=\"font-size:11px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;\">${label}</div>\n    ${sub ? `<div style=\"font-size:11px;color:#999;margin-top:2px;\">${sub}</div>` : ''}\n  </div>\n</td>`;\n\nconst total = s.total;\nconst negPct = pct(s.sentiment.Negative, total);\nconst urgent = (s.urgency.High || 0) + (s.urgency.Critical || 0);\n\n// Sentiment distribution bar\nconst sentBar = ['Positive','Neutral','Mixed','Negative'].map(k => {\n  const n = s.sentiment[k] || 0;\n  return n ? `<td style=\"width:${pct(n,total)}%;background:${COL[k]};height:18px;font-size:1px;line-height:1px;\">&nbsp;</td>` : '';\n}).join('');\nconst sentLegend = ['Positive','Neutral','Mixed','Negative'].map(k =>\n  `<span style=\"display:inline-block;margin-right:14px;font-size:12px;\"><span style=\"display:inline-block;width:10px;height:10px;background:${COL[k]};border-radius:2px;margin-right:4px;\"></span>${k}: <b>${s.sentiment[k] || 0}</b> (${pct(s.sentiment[k] || 0, total)}%)</span>`\n).join('');\n\n// Categories\nconst cats = Object.entries(s.categories).sort((x, y) => y[1].count - x[1].count);\nconst maxCat = cats.length ? cats[0][1].count : 1;\nconst insightMap = {};\n(a.category_insights || []).forEach(i => { insightMap[i.category] = i.insight; });\n\nconst catRows = cats.map(([name, c]) => {\n  const seg = k => c[k] > 0 ? `<td style=\"width:${(c[k] / c.count * 100).toFixed(1)}%;background:${COL[k]};height:14px;font-size:1px;line-height:1px;\">&nbsp;</td>` : '';\n  const w = Math.max(10, Math.round(c.count / maxCat * 100));\n  return `\n<tr>\n  <td style=\"padding:10px 8px;border-bottom:1px solid #eee;vertical-align:top;width:34%;\">\n    <b style=\"font-size:13px;\">${esc(name)}</b><br>\n    <span style=\"font-size:11px;color:#777;\">avg score ${c.avgScore} · ${pct(c.count, total)}% of feedback</span>\n  </td>\n  <td style=\"padding:10px 8px;border-bottom:1px solid #eee;vertical-align:top;\">\n    <table role=\"presentation\" width=\"${w}%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-radius:7px;overflow:hidden;\"><tr>${seg('Positive')}${seg('Neutral')}${seg('Mixed')}${seg('Negative')}</tr></table>\n    <div style=\"font-size:11px;color:#555;margin-top:4px;\"><b>${c.count}</b> staff · <span style=\"color:${COL.Positive}\">${c.Positive} pos</span> · <span style=\"color:${COL.Neutral}\">${c.Neutral} neu</span> · <span style=\"color:#b58900\">${c.Mixed} mixed</span> · <span style=\"color:${COL.Negative}\">${c.Negative} neg</span></div>\n    ${insightMap[name] ? `<div style=\"font-size:12px;color:#444;margin-top:5px;font-style:italic;\">${esc(insightMap[name])}</div>` : ''}\n  </td>\n</tr>`;\n}).join('');\n\n// Requests\nconst reqs = Object.entries(s.requests).sort((x, y) => y[1] - x[1]).slice(0, 10);\nconst reqRows = reqs.length ? reqs.map(([name, n]) => `\n<tr><td style=\"padding:7px 8px;border-bottom:1px solid #eee;font-size:13px;\">${esc(name)}</td>\n<td style=\"padding:7px 8px;border-bottom:1px solid #eee;text-align:right;\">${pill(n + (n === 1 ? ' staff' : ' staff'), '#5e35b1')}</td></tr>`).join('')\n  : '<tr><td style=\"padding:8px;color:#888;font-size:13px;\">No specific requests recorded yet.</td></tr>';\n\n// Departments\nconst deps = Object.entries(s.departments).sort((x, y) => y[1].count - x[1].count);\nconst depRows = deps.map(([name, d]) => `\n<tr>\n  <td style=\"padding:7px 8px;border-bottom:1px solid #eee;font-size:13px;\">${esc(name)}</td>\n  <td style=\"padding:7px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px;\">${d.count}</td>\n  <td style=\"padding:7px 8px;border-bottom:1px solid #eee;text-align:center;font-size:13px;color:${d.Negative ? COL.Negative : '#555'};\">${d.Negative}</td>\n  <td style=\"padding:7px 8px;border-bottom:1px solid #eee;text-align:center;\">${pill(d.avgScore, scoreColor(d.avgScore))}</td>\n</tr>`).join('');\n\n// Priorities\nconst prioCards = (a.top_priorities || []).map((p, i) => `\n<div style=\"border-left:5px solid ${i === 0 ? '#c62828' : (i === 1 ? '#ef6c00' : '#1a237e')};background:#fafafa;border-radius:4px;padding:12px 14px;margin-bottom:10px;\">\n  <div style=\"font-weight:bold;font-size:14px;\">${i + 1}. ${esc(p.title)}</div>\n  <div style=\"font-size:13px;color:#555;margin:4px 0;\">${esc(p.why)}</div>\n  <div style=\"font-size:13px;\"><b style=\"color:#1a237e;\">Recommended action:</b> ${esc(p.recommended_action)}</div>\n</div>`).join('');\n\nconst mood = a.overall_mood || 'Neutral';\nconst urgColor = URG[latest.Urgency] || '#555';\nconst sentColor = COL[latest.Sentiment] || '#555';\n\nconst html = `\n<div style=\"background:#eef1f7;padding:20px 10px;font-family:Arial,Helvetica,sans-serif;color:#222;line-height:1.5;\">\n<div style=\"max-width:720px;margin:auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);\">\n\n  <div style=\"background:linear-gradient(135deg,#1a237e,#5e35b1);color:#fff;padding:26px 28px;\">\n    <div style=\"font-size:12px;letter-spacing:1.5px;opacity:.8;\">HR INSIGHTS</div>\n    <h1 style=\"margin:4px 0 6px;font-size:24px;\">Employee Feedback Report</h1>\n    <div style=\"font-size:13px;opacity:.9;\">Updated automatically after new feedback · ${esc(new Date().toUTCString())}</div>\n    <div style=\"margin-top:12px;\">Overall mood: ${pill(mood, MOOD[mood] || '#546e7a')}</div>\n  </div>\n\n  <div style=\"padding:24px 28px;\">\n\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tr>\n      ${kpi('Total feedback', total, '#1a237e')}\n      ${kpi('Avg sentiment', s.avgScore, scoreColor(s.avgScore), scoreLabel(s.avgScore))}\n      ${kpi('Negative', negPct + '%', COL.Negative, s.sentiment.Negative + ' of ' + total)}\n      ${kpi('High / Critical', urgent, urgent ? '#ef6c00' : COL.Positive, 'need attention')}\n    </tr></table>\n\n    <div style=\"background:#f3f0fb;border-radius:8px;padding:14px 16px;margin-top:18px;font-size:14px;\">\n      <b style=\"color:#1a237e;\">Executive summary</b><br>${esc(a.executive_summary)}\n    </div>\n\n    <div style=\"border:2px solid ${urgColor};border-radius:8px;padding:14px 16px;margin-top:18px;\">\n      <div style=\"font-size:12px;font-weight:bold;color:${urgColor};letter-spacing:1px;\">🆕 LATEST FEEDBACK RECEIVED</div>\n      <div style=\"margin:8px 0;\">${pill(latest.Category, '#1a237e')} ${pill(latest.Sentiment, sentColor)} ${pill('Urgency: ' + latest.Urgency, urgColor)}</div>\n      <div style=\"font-size:13px;color:#555;\">${esc(latest.Department)} · ${esc(latest['Employee Name'])}</div>\n      <div style=\"font-size:14px;margin-top:6px;\"><b>${esc(latest.Summary)}</b></div>\n      <blockquote style=\"margin:10px 0 0;padding:8px 12px;background:#f5f5f5;border-left:4px solid ${sentColor};font-size:13px;white-space:pre-wrap;\">${esc(latest.Feedback)}</blockquote>\n      <div style=\"font-size:13px;color:#444;margin-top:10px;\">${esc(a.latest_feedback_comment)}</div>\n    </div>\n\n    ${h3('Sentiment overview')}\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-radius:9px;overflow:hidden;\"><tr>${sentBar}</tr></table>\n    <div style=\"margin-top:8px;\">${sentLegend}</div>\n\n    ${h3('Feedback by category')}\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">${catRows}</table>\n\n    ${h3('What staff are requesting', '#5e35b1')}\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">${reqRows}</table>\n\n    ${h3('Top priorities for HR', '#c62828')}\n    ${prioCards || '<p style=\"color:#888;\">No priorities identified.</p>'}\n\n    ${h3('Emerging risks', '#ef6c00')}\n    ${ul(a.emerging_risks)}\n\n    ${h3('Positive highlights', '#2e7d32')}\n    ${ul(a.positive_highlights)}\n\n    ${h3('By department')}\n    <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n      <tr style=\"background:#e8eaf6;font-size:12px;color:#1a237e;\">\n        <th style=\"padding:8px;text-align:left;\">Department</th><th style=\"padding:8px;\">Responses</th><th style=\"padding:8px;\">Negative</th><th style=\"padding:8px;\">Avg score</th>\n      </tr>${depRows}\n    </table>\n\n    <p style=\"margin-top:30px;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:12px;\">\n      This report is generated automatically from the Employee Feedback Google Sheet using Grok. All statistics reflect every response currently in the sheet. Confidential: for HR use only.\n    </p>\n  </div>\n</div>\n</div>`;\n\nconst prefix = latest.Urgency === 'Critical' ? '🚨 [CRITICAL] ' : (latest.Urgency === 'High' ? '⚠️ [HIGH] ' : '📊 ');\nconst subject = `${prefix}Employee Feedback Report: ${total} responses | New: ${latest.Category} (${latest.Sentiment})`;\n\nreturn [{ json: { subject, html } }];"
+      },
+      "id": "bb81e0eb-1556-46c1-a3a9-b844f588ddff",
+      "name": "Build HR Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "anthony@10alytics.org",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "4611490e-c11a-495d-8e8e-f7662a60985c",
+      "name": "Send Report to HR (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2464,
+        144
+      ],
+      "webhookId": "c3000000-0000-4000-8000-000000000002",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "DohPxbPIWU4lo1E8",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        656,
+        384
+      ],
+      "id": "83e35035-25c8-43c4-a80a-2e4ea7c65a5d",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "KPmbYujOvpGxjj7G",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1904,
+        384
+      ],
+      "id": "005042c4-b158-45c1-a73c-5b921c063b32",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "KPmbYujOvpGxjj7G",
+          "name": "Groq account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On Form Submission": {
+      "main": [
+        [
+          {
+            "node": "Classify Feedback Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classifier Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Classify Feedback Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Feedback Agent": {
+      "main": [
+        [
+          {
+            "node": "Assemble Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Row": {
+      "main": [
+        [
+          {
+            "node": "Append Feedback to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Feedback to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Read All Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Feedback": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Sheet Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Sheet Data": {
+      "main": [
+        [
+          {
+            "node": "HR Summary Analyst Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyst Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "HR Summary Analyst Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HR Summary Analyst Agent": {
+      "main": [
+        [
+          {
+            "node": "Build HR Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HR Email": {
+      "main": [
+        [
+          {
+            "node": "Send Report to HR (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classify Feedback Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "HR Summary Analyst Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e344e71c-0655-4c48-8c54-e5e6b0a5d445",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "781129a1284c940c33d7e4a0ffaaec6c67b3aa6427f4269a93c69373852b86b7"
+  },
+  "nodeGroups": [],
+  "id": "w76lbjihdTBmfZXz",
+  "tags": []
+}
